@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Adaptive Learning Platform</title>
+  <style>
+    :root{
+      --bg: #f7fafc;
+      --card: #ffffff;
+      --accent: #0ea5e9;
+      --muted: #6b7280;
+      --glass: rgba(255,255,255,0.7);
+    }
+    body { margin:0; font-family: Inter, Arial, sans-serif; background:var(--bg); }
+    header {
+      background: linear-gradient(rgb(22, 22, 108) rgb(208, 85, 202));
+      color:purple; padding:14px 18px; display:flex; align-items:center; justify-content:space-between;
+      box-shadow: 0 6px 20px rgba(14,165,233,0.12);
+    }
+    header h1 { margin:0; font-size:18px; }
+    .container { max-width:1100px; margin:20px auto; padding:18px; }
+    .grid { display:grid; grid-template-columns: 1fr 360px; gap:18px; align-items:start; }
+    .card { background:var(--card); border-radius:12px; padding:14px; box-shadow: 0 6px 18px rgba(2,6,23,0.06); }
+    .file-drop {
+      border:2px dashed #e6eef7; padding:18px; border-radius:10px; text-align:center; color:var(--muted);
+    }
+    input[type="file"] { display:none; }
+    .upload-row { display:flex; gap:8px; align-items:center; }
+    button { cursor:pointer; border:0; padding:10px 12px; border-radius:8px; font-weight:600; }
+    .btn-primary { background:var(--accent); color:white; }
+    .progress { height:18px; background:#eef2f3; border-radius:10px; overflow:hidden; }
+    .progress-bar { height:100%; width:0%; text-align:center; font-size:12px; line-height:18px; color:white; background:linear-gradient(90deg,#06b6d4,#0ea5e9); }
+    .recommendation { margin-top:12px; padding:10px; border-radius:8px; background:#f8fafc; color:#0f172a; }
+    .logout { background:transparent; color:white; border:1px solid rgba(255,255,255,0.18); padding:8px 10px; border-radius:8px; }
+    .small { font-size:13px; color:var(--muted); }
+    .chart-placeholder { height:220px; display:flex; align-items:center; justify-content:center; color:var(--muted); border-radius:8px; border:1px dashed #e6eef7; }
+    .file-list { margin-top:8px; font-size:13px; color:var(--muted); }
+    .center { text-align:center; }
+    @media (max-width:900px){
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Adaptive Learning Platform</h1>
+    <div>
+      <button class="logout" onclick="logout()">Logout</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="grid">
+      <!-- Left column: Main features -->
+      <div>
+        <div class="card">
+          <h2>Upload Study Document</h2>
+          <p class="small">Upload PDFs or text documents. (Demo — file not sent to a server)</p>
+
+          <div class="file-drop" id="dropArea">
+            <p>Drag & drop a file here or</p>
+            <div class="upload-row" style="justify-content:center;">
+              <label for="docFile" style="cursor:pointer;">
+                <button class="btn-primary">Choose File</button>
+              </label>
+              <input id="docFile" type="file" accept=".pdf,.txt,.docx">
+            </div>
+            <div class="file-list" id="fileList"></div>
+          </div>
+
+          <div style="margin-top:12px;">
+            <h3>Processing</h3>
+            <div class="progress" aria-hidden="false">
+              <div id="pbar" class="progress-bar">0%</div>
+            </div>
+            <div style="margin-top:8px; display:flex; gap:8px;">
+              <button onclick="simulateProcess()" class="btn-primary">Process Document</button>
+              <button onclick="generateAssessments()">Generate Quick Assessment</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <h2>Study Recommendation</h2>
+          <p class="small">AI-driven suggestions will appear below (demo uses simple heuristics).</p>
+          <div id="recommend" class="recommendation">
+            No recommendations yet. Process a document or press "Get Recommendations".
+          </div>
+          <div style="margin-top:10px; display:flex; gap:8px;">
+            <button class="btn-primary" onclick="getRec()">Get Recommendations</button>
+            <button onclick="clearRec()">Clear</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <h2>Auto-generated Quick Quiz</h2>
+          <p class="small">Sample exercise generation (demo).</p>
+          <div id="quizArea" class="recommendation">No quiz generated yet.</div>
+        </div>
+      </div>
+
+      <!-- Right column: Analytics and progress -->
+      <aside>
+        <div class="card">
+          <h3 class="center">Progress Analytics</h3>
+          <div class="chart-placeholder">Study Progress Chart (placeholder)</div>
+          <div style="margin-top:12px;">
+            <strong>Completion</strong>
+            <div class="progress" style="margin-top:6px;">
+              <div id="progressDash" class="progress-bar" style="width:40%">40%</div>
+            </div>
+            <p class="small" style="margin-top:8px;">Weekly practice: <strong id="practiceCount">3</strong> sessions</p>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <h3 class="center">Quick Actions</h3>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <button onclick="markPractice()">Mark Practice</button>
+            <button onclick="resetProgress()">Reset</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    // Basic page access control (client-side)
+    if(localStorage.getItem('alp_logged_in') !== '1'){
+      // Not logged in — redirect to login
+      setTimeout(()=> window.location.href = 'login.html', 150);
+    }
+
+    // --- File upload UI ---
+    const docFile = document.getElementById('docFile');
+    const fileList = document.getElementById('fileList');
+    const dropArea = document.getElementById('dropArea');
+
+    docFile.addEventListener('change', (e)=> {
+      const f = e.target.files[0];
+      if(f) showFile(f);
+    });
+
+    dropArea.addEventListener('dragover', (e)=> { e.preventDefault(); dropArea.style.borderColor = '#0ea5e9'; });
+    dropArea.addEventListener('dragleave', ()=> { dropArea.style.borderColor = '#e6eef7'; });
+    dropArea.addEventListener('drop', (e)=> {
+      e.preventDefault(); dropArea.style.borderColor = '#e6eef7';
+      const f = e.dataTransfer.files[0];
+      if(f) { docFile.files = e.dataTransfer.files; showFile(f); }
+    });
+
+    function showFile(file){
+      fileList.innerHTML = <strong>Selected:</strong> ${file.name} — ${(file.size/1024).toFixed(1)} KB;
+    }
+
+    // --- Simulate processing ---
+    function simulateProcess(){
+      const bar = document.getElementById('pbar');
+      let v = 0;
+      bar.style.width = '0%';
+      const t = setInterval(()=> {
+        v += Math.random()*12;
+        if(v>=100) { v = 100; clearInterval(t); bar.textContent = 'Done'; bar.style.width = '100%'; onProcessingDone(); }
+        else { bar.style.width = v.toFixed(0) + '%'; bar.textContent = v.toFixed(0) + '%'; }
+      }, 300);
+    }
+
+    function onProcessingDone(){
+      // fill recommendation demo
+      document.getElementById('recommend').innerHTML =
+        `<strong>Recommended Plan</strong><br>
+         • Revise topic: Algorithms (30 mins/day)<br>
+         • Practice: 5 coding problems (difficulty: medium)<br>
+         • Next assessment: Mini-quiz (10 questions)`;
+    }
+
+    // --- Recommendations and quiz generation (demo heuristics) ---
+    function getRec(){ 
+      const rec = [
+        "Focus on weak topics identified in your last session.",
+        "Practice problem solving: 30 minutes a day.",
+        "Try 3 mixed-difficulty exercises this week.",
+        "Watch 1 short tutorial video per topic before coding exercises."
+      ];
+      // random pick 3
+      const pick = rec.sort(()=>0.5-Math.random()).slice(0,3).map((r,i)=> <div>${i+1}. ${r}</div>).join('');
+      document.getElementById('recommend').innerHTML = <strong>AI Suggestion
+      }
+</body>
+</html>
